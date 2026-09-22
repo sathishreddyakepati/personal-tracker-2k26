@@ -209,3 +209,56 @@
   color: var(--text-muted);
   font-style: italic;
 }
+
+@media (max-width: 768px) {
+  .slot-actions {
+    opacity: 0.85;
+  }
+}
+
+@media (max-width: 640px) {
+  .timetable-header {
+    margin-bottom: 1.25rem;
+  }
+
+  .timetable-header .btn {
+    width: 100%;
+  }
+
+  .timetable-type-switcher {
+    width: 100%;
+    margin-bottom: 1.25rem;
+  }
+
+  .tt-switch-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .day-selector-tabs {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-bottom: 1.25rem;
+  }
+
+  .day-selector-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .weekly-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .day-column-header {
+    padding: 0.75rem 1rem;
+  }
+
+  .day-column-body {
+    padding: 0.75rem;
+    gap: 0.6rem;
+  }
+}
+

@@ -31,7 +31,22 @@ document.addEventListener('DOMContentLoaded', () => {
     updateGlobalStreakBadge();
     refreshActiveView();
   });
+
+  // 7. Register Service Worker for PWA capabilities
+  registerServiceWorker();
 });
+
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator && (window.location.protocol.startsWith('http') || window.location.protocol === 'https:')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        // SW registered
+      }).catch(err => {
+        // Optional/graceful fallback
+      });
+    });
+  }
+}
 
 function updateGlobalStreakBadge() {
   const badgeEl = document.getElementById('globalStreakBadge');

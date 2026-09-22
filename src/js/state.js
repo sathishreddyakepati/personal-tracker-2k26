@@ -98,9 +98,6 @@ class StateStore {
       this.save();
     } else {
       this.loadFromStorage();
-      // Ensure real academic timetable is loaded
-      this.academicTimetable = [...AMRITA_AIE_TIMETABLE];
-      this.save();
     }
   }
 

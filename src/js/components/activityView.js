@@ -204,24 +204,28 @@ export function renderActivityView(container) {
                     const style = getCategoryStyle(act.category);
                     return `
                     <tr data-act-id="${act.id}">
-                      <td style="white-space: nowrap; font-weight: 600; color: var(--text-secondary);">
+                      <td class="col-date" data-label="Date">
                         ${formatDisplayDate(act.date)}
                       </td>
-                      <td>
+                      <td class="col-category" data-label="Category">
                         <span class="badge" style="background: ${style.bg}; color: ${style.color};">
                           <span class="badge-dot" style="background: ${style.color};"></span>
                           ${act.category}
                         </span>
                       </td>
-                      <td style="font-weight: 600;">${act.title}</td>
-                      <td>
+                      <td class="col-title" data-label="Activity">
+                        <span class="activity-cell-title">${act.title}</span>
+                      </td>
+                      <td class="col-duration" data-label="Duration">
                         <span class="stream-duration">${formatDuration(act.duration)}</span>
                       </td>
-                      <td style="color: var(--text-secondary);">${act.quantity || '&mdash;'}</td>
-                      <td style="color: var(--text-muted); font-size: 0.8rem; max-width: 250px;">
+                      <td class="col-quantity" data-label="Output">
+                        ${act.quantity || '&mdash;'}
+                      </td>
+                      <td class="col-notes" data-label="Notes">
                         ${act.notes || '&mdash;'}
                       </td>
-                      <td style="text-align: right; white-space: nowrap;">
+                      <td class="col-actions">
                         <button class="btn btn-ghost btn-sm btn-icon-only" data-action="edit-act" title="Edit Activity">
                           ${icons.edit}
                         </button>

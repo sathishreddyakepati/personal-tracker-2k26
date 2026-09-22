@@ -234,7 +234,7 @@ export function generateHeatmapWeeks(activities = [], tasks = []) {
   
   // Calculate start date: 52 weeks ago from the Monday of the current week
   const startDate = new Date(endDate);
-  startDate.setDate(startDate.getDate() - endDayOfWeek - (52 * 7) + 1);
+  startDate.setDate(startDate.getDate() - endDayOfWeek - (52 * 7));
 
   const weeks = [];
   let currentWeek = [];

@@ -160,3 +160,49 @@
   flex-direction: column;
   gap: 1rem;
 }
+
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 0.75rem;
+    align-items: flex-end;
+  }
+
+  .modal-container {
+    max-height: 90vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .modal-header {
+    padding: 1rem 1.15rem;
+  }
+
+  .modal-body {
+    padding: 1rem 1.15rem 1.5rem;
+  }
+
+  .modal-actions {
+    margin-top: 1.25rem;
+    padding-top: 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .modal-actions button {
+    flex: 1;
+    min-height: 42px;
+  }
+
+  .drawer-container {
+    width: 100%;
+    max-width: 100%;
+    border-left: none;
+  }
+
+  .drawer-header {
+    padding: 1rem 1.15rem;
+  }
+
+  .drawer-body {
+    padding: 1rem 1.15rem;
+  }
+}
