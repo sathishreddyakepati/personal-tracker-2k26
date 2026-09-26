@@ -68,6 +68,31 @@ function setupNavigation() {
       }
     });
   });
+
+  const brand = document.getElementById('brandLogo');
+  if (brand) {
+    brand.addEventListener('click', () => {
+      switchView('dashboard');
+    });
+  }
+}
+
+function scrollTabIntoView(tab) {
+  if (!tab) return;
+  const navContainer = tab.closest('.nav-tabs');
+  if (!navContainer) return;
+
+  // Only scroll if container is horizontally scrollable
+  if (navContainer.scrollWidth > navContainer.clientWidth) {
+    const tabLeft = tab.offsetLeft;
+    const tabWidth = tab.offsetWidth;
+    const containerWidth = navContainer.clientWidth;
+    const scrollTarget = tabLeft - (containerWidth / 2) + (tabWidth / 2);
+    navContainer.scrollTo({
+      left: Math.max(0, scrollTarget),
+      behavior: 'smooth'
+    });
+  }
 }
 
 export function switchView(viewName) {
@@ -77,6 +102,7 @@ export function switchView(viewName) {
   document.querySelectorAll('.nav-tab').forEach(tab => {
     if (tab.dataset.view === viewName) {
       tab.classList.add('active');
+      scrollTabIntoView(tab);
     } else {
       tab.classList.remove('active');
     }
