@@ -66,7 +66,11 @@ class StateStore {
       ACADEMIC_TIMETABLE: 'pt_academic_tt_v2',
       CAREER_TIMETABLE: 'pt_career_tt_v2',
       ACTIVITIES: 'pt_activities_v2',
-      INITIALIZED: 'pt_initialized_v2'
+      INITIALIZED: 'pt_initialized_v2',
+      ROADMAPS: 'pt_roadmaps_v1',
+      ROADMAP_SECTIONS: 'pt_roadmap_sections_v1',
+      ROADMAP_ITEMS: 'pt_roadmap_items_v1',
+      ROADMAP_PROBLEM_TOPICS: 'pt_roadmap_problem_topics_v1'
     };
 
     this.listeners = new Set();
@@ -74,6 +78,10 @@ class StateStore {
     this.academicTimetable = [];
     this.careerTimetable = [];
     this.activities = [];
+    this.roadmaps = [];
+    this.roadmapSections = [];
+    this.roadmapItems = [];
+    this.roadmapProblemTopics = [];
 
     this.init();
   }
@@ -95,6 +103,10 @@ class StateStore {
       this.academicTimetable = [...AMRITA_AIE_TIMETABLE];
       this.careerTimetable = [];
       this.activities = [];
+      this.roadmaps = [];
+      this.roadmapSections = [];
+      this.roadmapItems = [];
+      this.roadmapProblemTopics = [];
       this.save();
     } else {
       this.loadFromStorage();
@@ -107,12 +119,57 @@ class StateStore {
       this.academicTimetable = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ACADEMIC_TIMETABLE) || '[]');
       this.careerTimetable = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CAREER_TIMETABLE) || '[]');
       this.activities = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ACTIVITIES) || '[]');
+      this.roadmaps = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ROADMAPS) || '[]');
+      this.roadmapSections = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ROADMAP_SECTIONS) || '[]');
+      this.roadmapItems = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ROADMAP_ITEMS) || '[]');
+      this.roadmapProblemTopics = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ROADMAP_PROBLEM_TOPICS) || '[]');
+
+      // Safe migration for existing/legacy numeric target roadmaps -> Problem Roadmaps
+      this.migrateLegacyNumericRoadmaps();
     } catch (e) {
       console.error('Error loading data from localStorage', e);
       this.tasks = [];
       this.academicTimetable = [];
       this.careerTimetable = [];
       this.activities = [];
+      this.roadmaps = [];
+      this.roadmapSections = [];
+      this.roadmapItems = [];
+      this.roadmapProblemTopics = [];
+    }
+  }
+
+  migrateLegacyNumericRoadmaps() {
+    let hasChanges = false;
+    this.roadmaps.forEach(roadmap => {
+      if (roadmap.progressType === 'numeric') {
+        roadmap.progressType = 'problems';
+        hasChanges = true;
+      }
+      if (roadmap.progressType === 'problems') {
+        const existingTopics = this.roadmapProblemTopics.filter(t => t.roadmapId === roadmap.id);
+        if (existingTopics.length === 0 && (roadmap.targetValue !== undefined || roadmap.currentValue !== undefined)) {
+          const topicTitle = (roadmap.unit && roadmap.unit !== 'Problems' && roadmap.unit !== 'Units') 
+            ? roadmap.unit 
+            : 'Arrays';
+          const newTopic = {
+            id: 'top_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+            roadmapId: roadmap.id,
+            title: topicTitle,
+            solved: Math.max(0, Number(roadmap.currentValue) || 0),
+            total: Math.max(1, Number(roadmap.targetValue) || 1),
+            order: 0,
+            createdAt: roadmap.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          this.roadmapProblemTopics.push(newTopic);
+          hasChanges = true;
+        }
+      }
+    });
+
+    if (hasChanges) {
+      this.saveRoadmaps();
     }
   }
 
@@ -122,10 +179,26 @@ class StateStore {
       localStorage.setItem(this.STORAGE_KEYS.ACADEMIC_TIMETABLE, JSON.stringify(this.academicTimetable));
       localStorage.setItem(this.STORAGE_KEYS.CAREER_TIMETABLE, JSON.stringify(this.careerTimetable));
       localStorage.setItem(this.STORAGE_KEYS.ACTIVITIES, JSON.stringify(this.activities));
+      localStorage.setItem(this.STORAGE_KEYS.ROADMAPS, JSON.stringify(this.roadmaps));
+      localStorage.setItem(this.STORAGE_KEYS.ROADMAP_SECTIONS, JSON.stringify(this.roadmapSections));
+      localStorage.setItem(this.STORAGE_KEYS.ROADMAP_ITEMS, JSON.stringify(this.roadmapItems));
+      localStorage.setItem(this.STORAGE_KEYS.ROADMAP_PROBLEM_TOPICS, JSON.stringify(this.roadmapProblemTopics));
       localStorage.setItem(this.STORAGE_KEYS.INITIALIZED, 'true');
       this.notify();
     } catch (e) {
       console.error('Failed to save to localStorage', e);
+    }
+  }
+
+  saveRoadmaps() {
+    try {
+      localStorage.setItem(this.STORAGE_KEYS.ROADMAPS, JSON.stringify(this.roadmaps));
+      localStorage.setItem(this.STORAGE_KEYS.ROADMAP_SECTIONS, JSON.stringify(this.roadmapSections));
+      localStorage.setItem(this.STORAGE_KEYS.ROADMAP_ITEMS, JSON.stringify(this.roadmapItems));
+      localStorage.setItem(this.STORAGE_KEYS.ROADMAP_PROBLEM_TOPICS, JSON.stringify(this.roadmapProblemTopics));
+      this.notify();
+    } catch (e) {
+      console.error('Failed to save roadmaps to localStorage', e);
     }
   }
 
@@ -311,6 +384,420 @@ class StateStore {
   deleteActivity(id) {
     this.activities = this.activities.filter(a => a.id !== id);
     this.save();
+  }
+
+  // --- Roadmap Methods ---
+  cleanBulkTitle(raw) {
+    if (!raw) return '';
+    let str = raw.trim();
+    // Common numbering formats: 01 →, 01 ->, 01 -, 01., 01), 1., 1), 1 -, 1:, #1, [1]
+    return str.replace(/^(?:\d+[\s.:)→>–—-]+|#\d+\s*|\[\d+\]\s*)/, '').trim();
+  }
+
+  addRoadmap(data) {
+    const isProblem = data.progressType === 'problems' || data.progressType === 'numeric';
+    const newRoadmap = {
+      id: 'roadmap_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      title: (data.title || '').trim(),
+      category: data.category || 'DSA',
+      description: (data.description || '').trim(),
+      progressType: isProblem ? 'problems' : 'checklist',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.roadmaps.unshift(newRoadmap);
+    this.saveRoadmaps();
+    return newRoadmap;
+  }
+
+  updateRoadmap(id, updates) {
+    const idx = this.roadmaps.findIndex(r => r.id === id);
+    if (idx !== -1) {
+      const current = this.roadmaps[idx];
+      const updated = {
+        ...current,
+        ...updates,
+        title: updates.title !== undefined ? updates.title.trim() : current.title,
+        description: updates.description !== undefined ? updates.description.trim() : current.description,
+        category: updates.category !== undefined ? updates.category : current.category,
+        updatedAt: new Date().toISOString()
+      };
+
+      this.roadmaps[idx] = updated;
+      this.saveRoadmaps();
+      return updated;
+    }
+    return null;
+  }
+
+  deleteRoadmap(id) {
+    this.roadmaps = this.roadmaps.filter(r => r.id !== id);
+    this.roadmapSections = this.roadmapSections.filter(s => s.roadmapId !== id);
+    this.roadmapItems = this.roadmapItems.filter(i => i.roadmapId !== id);
+    this.roadmapProblemTopics = this.roadmapProblemTopics.filter(t => t.roadmapId !== id);
+    this.saveRoadmaps();
+  }
+
+  // --- Roadmap Sections Methods ---
+  addRoadmapSection(data) {
+    const existing = this.roadmapSections.filter(s => s.roadmapId === data.roadmapId);
+    const nextOrder = existing.length > 0 
+      ? Math.max(...existing.map(s => s.order ?? 0)) + 1 
+      : 0;
+
+    const newSection = {
+      id: 'sec_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      roadmapId: data.roadmapId,
+      title: (data.title || '').trim(),
+      order: data.order !== undefined ? Number(data.order) : nextOrder
+    };
+
+    this.roadmapSections.push(newSection);
+    this.saveRoadmaps();
+    return newSection;
+  }
+
+  updateRoadmapSection(id, updates) {
+    const idx = this.roadmapSections.findIndex(s => s.id === id);
+    if (idx !== -1) {
+      this.roadmapSections[idx] = {
+        ...this.roadmapSections[idx],
+        ...updates,
+        title: updates.title !== undefined ? updates.title.trim() : this.roadmapSections[idx].title
+      };
+      this.saveRoadmaps();
+      return this.roadmapSections[idx];
+    }
+    return null;
+  }
+
+  deleteRoadmapSection(id) {
+    const section = this.roadmapSections.find(s => s.id === id);
+    if (!section) return;
+
+    // Preserving items: Move any items in this section to unsectioned (sectionId: null)
+    this.roadmapItems.forEach(item => {
+      if (item.sectionId === id) {
+        item.sectionId = null;
+        item.updatedAt = new Date().toISOString();
+      }
+    });
+
+    this.roadmapSections = this.roadmapSections.filter(s => s.id !== id);
+    this.saveRoadmaps();
+  }
+
+  reorderRoadmapSections(roadmapId, sectionId, direction) {
+    const sections = this.roadmapSections
+      .filter(s => s.roadmapId === roadmapId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    const index = sections.findIndex(s => s.id === sectionId);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= sections.length) return;
+
+    const currentOrder = sections[index].order ?? index;
+    const targetOrder = sections[targetIndex].order ?? targetIndex;
+
+    sections[index].order = targetOrder;
+    sections[targetIndex].order = currentOrder;
+
+    sections.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    sections.forEach((s, idx) => { s.order = idx; });
+
+    this.saveRoadmaps();
+  }
+
+  // --- Roadmap Items Methods ---
+  addRoadmapItem(data) {
+    const sectionKey = data.sectionId || null;
+    const existing = this.roadmapItems.filter(i => 
+      i.roadmapId === data.roadmapId && 
+      (i.sectionId || null) === sectionKey
+    );
+    const nextOrder = existing.length > 0 
+      ? Math.max(...existing.map(i => i.order ?? 0)) + 1 
+      : 0;
+
+    const newItem = {
+      id: 'item_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      roadmapId: data.roadmapId,
+      sectionId: sectionKey,
+      title: (data.title || '').trim(),
+      description: (data.description || '').trim(),
+      resourceUrl: (data.resourceUrl || '').trim(),
+      completed: Boolean(data.completed),
+      order: data.order !== undefined ? Number(data.order) : nextOrder,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.roadmapItems.push(newItem);
+    this.saveRoadmaps();
+    return newItem;
+  }
+
+  bulkAddRoadmapItems(roadmapId, sectionId, lines) {
+    const rawLines = Array.isArray(lines) ? lines : (lines || '').split('\n');
+    const validTitles = [];
+
+    for (const line of rawLines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const cleaned = this.cleanBulkTitle(trimmed);
+      if (cleaned.length > 0) {
+        validTitles.push(cleaned);
+      }
+    }
+
+    if (validTitles.length === 0) return [];
+
+    const sectionKey = sectionId || null;
+    const existing = this.roadmapItems.filter(i => 
+      i.roadmapId === roadmapId && 
+      (i.sectionId || null) === sectionKey
+    );
+    let startOrder = existing.length > 0 
+      ? Math.max(...existing.map(i => i.order ?? 0)) + 1 
+      : 0;
+
+    const now = new Date().toISOString();
+    const createdItems = validTitles.map((title, idx) => ({
+      id: 'item_' + Date.now() + '_' + idx + '_' + Math.random().toString(36).substring(2, 6),
+      roadmapId,
+      sectionId: sectionKey,
+      title,
+      description: '',
+      resourceUrl: '',
+      completed: false,
+      order: startOrder + idx,
+      createdAt: now,
+      updatedAt: now
+    }));
+
+    // Atomic insertion: all or none
+    this.roadmapItems.push(...createdItems);
+    this.saveRoadmaps();
+    return createdItems;
+  }
+
+  updateRoadmapItem(id, updates) {
+    const idx = this.roadmapItems.findIndex(i => i.id === id);
+    if (idx !== -1) {
+      const current = this.roadmapItems[idx];
+      const updated = {
+        ...current,
+        ...updates,
+        title: updates.title !== undefined ? updates.title.trim() : current.title,
+        description: updates.description !== undefined ? updates.description.trim() : current.description,
+        resourceUrl: updates.resourceUrl !== undefined ? updates.resourceUrl.trim() : current.resourceUrl,
+        sectionId: updates.sectionId !== undefined ? (updates.sectionId || null) : current.sectionId,
+        updatedAt: new Date().toISOString()
+      };
+      this.roadmapItems[idx] = updated;
+      this.saveRoadmaps();
+      return updated;
+    }
+    return null;
+  }
+
+  deleteRoadmapItem(id) {
+    this.roadmapItems = this.roadmapItems.filter(i => i.id !== id);
+    this.saveRoadmaps();
+  }
+
+  toggleRoadmapItem(id) {
+    const item = this.roadmapItems.find(i => i.id === id);
+    if (item) {
+      item.completed = !item.completed;
+      item.updatedAt = new Date().toISOString();
+      this.saveRoadmaps();
+      return item;
+    }
+    return null;
+  }
+
+  reorderRoadmapItems(roadmapId, sectionId, itemId, direction) {
+    const sectionKey = sectionId || null;
+    const items = this.roadmapItems
+      .filter(i => i.roadmapId === roadmapId && (i.sectionId || null) === sectionKey)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    const index = items.findIndex(i => i.id === itemId);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+
+    const currentOrder = items[index].order ?? index;
+    const targetOrder = items[targetIndex].order ?? targetIndex;
+
+    items[index].order = targetOrder;
+    items[targetIndex].order = currentOrder;
+
+    items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    items.forEach((item, idx) => { item.order = idx; });
+
+    this.saveRoadmaps();
+  }
+
+  moveRoadmapItemSection(itemId, newSectionId) {
+    const item = this.roadmapItems.find(i => i.id === itemId);
+    if (item) {
+      const sectionKey = newSectionId || null;
+      item.sectionId = sectionKey;
+      const targetItems = this.roadmapItems.filter(i => 
+        i.roadmapId === item.roadmapId && 
+        (i.sectionId || null) === sectionKey && 
+        i.id !== itemId
+      );
+      item.order = targetItems.length > 0 ? Math.max(...targetItems.map(i => i.order ?? 0)) + 1 : 0;
+      item.updatedAt = new Date().toISOString();
+      this.saveRoadmaps();
+      return item;
+    }
+    return null;
+  }
+
+  // --- Problem Roadmap Topic Methods ---
+  addProblemTopic(data) {
+    const existing = this.roadmapProblemTopics.filter(t => t.roadmapId === data.roadmapId);
+    const nextOrder = existing.length > 0 
+      ? Math.max(...existing.map(t => t.order ?? 0)) + 1 
+      : 0;
+
+    const total = Math.max(1, Number(data.total) || 1);
+    const solved = Math.min(total, Math.max(0, Number(data.solved) || 0));
+
+    const newTopic = {
+      id: 'top_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      roadmapId: data.roadmapId,
+      title: (data.title || '').trim(),
+      solved,
+      total,
+      order: data.order !== undefined ? Number(data.order) : nextOrder,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.roadmapProblemTopics.push(newTopic);
+    this.saveRoadmaps();
+    return newTopic;
+  }
+
+  updateProblemTopic(id, updates) {
+    const idx = this.roadmapProblemTopics.findIndex(t => t.id === id);
+    if (idx !== -1) {
+      const current = this.roadmapProblemTopics[idx];
+      const newTotal = updates.total !== undefined ? Math.max(1, Number(updates.total) || 1) : current.total;
+      const newSolved = updates.solved !== undefined 
+        ? Math.min(newTotal, Math.max(0, Number(updates.solved) || 0)) 
+        : Math.min(newTotal, current.solved);
+
+      const updated = {
+        ...current,
+        ...updates,
+        title: updates.title !== undefined ? updates.title.trim() : current.title,
+        solved: newSolved,
+        total: newTotal,
+        updatedAt: new Date().toISOString()
+      };
+
+      this.roadmapProblemTopics[idx] = updated;
+      this.saveRoadmaps();
+      return updated;
+    }
+    return null;
+  }
+
+  deleteProblemTopic(id) {
+    this.roadmapProblemTopics = this.roadmapProblemTopics.filter(t => t.id !== id);
+    this.saveRoadmaps();
+  }
+
+  stepProblemTopicSolved(id, step) {
+    const topic = this.roadmapProblemTopics.find(t => t.id === id);
+    if (!topic) return { success: false, message: 'Topic not found' };
+
+    const targetVal = topic.solved + step;
+    if (targetVal < 0) {
+      return { success: false, message: 'Solved count cannot be less than 0' };
+    }
+    if (targetVal > topic.total) {
+      return { success: false, message: `Solved count cannot exceed total (${topic.total})` };
+    }
+
+    topic.solved = targetVal;
+    topic.updatedAt = new Date().toISOString();
+    this.saveRoadmaps();
+    return { success: true, topic };
+  }
+
+  reorderProblemTopics(roadmapId, topicId, direction) {
+    const topics = this.roadmapProblemTopics
+      .filter(t => t.roadmapId === roadmapId)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    const index = topics.findIndex(t => t.id === topicId);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= topics.length) return;
+
+    const currentOrder = topics[index].order ?? index;
+    const targetOrder = topics[targetIndex].order ?? targetIndex;
+
+    topics[index].order = targetOrder;
+    topics[targetIndex].order = currentOrder;
+
+    topics.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    topics.forEach((t, idx) => { t.order = idx; });
+
+    this.saveRoadmaps();
+  }
+
+  getRoadmapProgress(roadmapId) {
+    const roadmap = this.roadmaps.find(r => r.id === roadmapId);
+    if (!roadmap) {
+      return { percentage: 0, completedCount: 0, totalCount: 0, progressText: '0%', isChecklist: true, isProblems: false };
+    }
+
+    if (roadmap.progressType === 'problems' || roadmap.progressType === 'numeric') {
+      const topics = this.roadmapProblemTopics
+        .filter(t => t.roadmapId === roadmapId)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+      const totalSolved = topics.reduce((acc, t) => acc + (Number(t.solved) || 0), 0);
+      const totalProblems = topics.reduce((acc, t) => acc + (Number(t.total) || 0), 0);
+      const percentage = totalProblems > 0 ? Math.round((totalSolved / totalProblems) * 100) : 0;
+
+      return {
+        percentage,
+        totalSolved,
+        totalProblems,
+        topicsCount: topics.length,
+        progressText: `${totalSolved} / ${totalProblems} Problems`,
+        isChecklist: false,
+        isProblems: true
+      };
+    }
+
+    const items = this.roadmapItems.filter(i => i.roadmapId === roadmapId);
+    const totalCount = items.length;
+    const completedCount = items.filter(i => i.completed).length;
+    const percentage = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
+
+    return {
+      percentage,
+      completedCount,
+      totalCount,
+      progressText: `${completedCount} / ${totalCount} completed`,
+      isChecklist: true,
+      isProblems: false
+    };
   }
 
   // --- Seed Demo Data ---

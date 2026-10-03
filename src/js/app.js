@@ -7,6 +7,7 @@ import { renderDashboard } from './components/dashboard.js';
 import { renderTasksView, openTaskFormModal } from './components/tasksView.js';
 import { renderTimetableView } from './components/timetableView.js';
 import { renderActivityView, openActivityFormModal } from './components/activityView.js';
+import { renderRoadmapsView } from './components/roadmapsView.js';
 
 let currentView = 'dashboard';
 
@@ -129,6 +130,8 @@ function renderActiveView(viewName, container) {
     renderTimetableView(container);
   } else if (viewName === 'activity') {
     renderActivityView(container);
+  } else if (viewName === 'roadmaps') {
+    renderRoadmapsView(container);
   }
 }
 
